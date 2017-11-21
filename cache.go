@@ -1,7 +1,7 @@
 package cache
 
 import (
-	"lovefrontend/models/cache/memory"
+	"github.com/RGRU/go-cache/memory"
 )
 
 // Cache general cache structure
