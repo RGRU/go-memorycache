@@ -1,4 +1,4 @@
-# go-memoryca
+# Go-memoryca [![Build Status](https://travis-ci.org/RGRU/go-memoryca.svg?branch=master)](https://travis-ci.org/RGRU/go-memoryca)
 Manager memory key:value store/cache in Golang
 
 
