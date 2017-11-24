@@ -1,10 +1,10 @@
-# go-cache
-Сache is a Go cache manager
+# go-memoryca
+Manager memory key:value store/cache in Golang
 
 
 ## How to install?
 
-	go get github.com/RGRU/go-cache
+	go get github.com/RGRU/go-memoryca
 
 
 ## How to use it?
@@ -12,25 +12,17 @@
 First you must import it
 
 	import (
-		cache "github.com/RGRU/go-cache"
+		memoryca "github.com/RGRU/go-memoryca"
 	)
 
-Init a Cache (example with memory adapter)
+Init a new Cache
 
-	AppCache := cache.NewCache("memory", `{"expiration":10, "interval":10}`)
-    or outside the function
-    var AppCache *cache.Cache = cache.NewCache("memory", `{"expiration":10, "interval":10}`)
+	cache := memoryca.New("testDB", 10*time.Minute, 10*time.Minute)
+
 
 Use it like this:
 
-	cache.AppCache.Memory.Set("myKey", "My value", 10 * time.Minute)
-	cache.AppCache.Memory.Get("myKey")
-	cache.AppCache.Memory.IsExist("myKey")
-	cache.AppCache.Memory.Delete("myKey")
-
-
-## Memory adapter
-
-Configure memory adapter like this:
-
-	{"expiration":10, "interval":10}
+	cache.Set("myKey", "My value", 5 * time.Minute)
+	cache.Get("myKey")
+	cache.Exist("myKey")
+	cache.Delete("myKey")
