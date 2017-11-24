@@ -22,7 +22,14 @@ Init a new Cache
 
 Use it like this:
 
+	// Set cache by key
 	cache.Set("myKey", "My value", 5 * time.Minute)
+
+	// Get cache by key
 	cache.Get("myKey")
+
+	// Check exist cache
 	cache.Exist("myKey")
+
+	// Delete cache by key
 	cache.Delete("myKey")
