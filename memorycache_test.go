@@ -17,10 +17,10 @@ const (
 )
 
 // AppCache init new cache
-var AppCache = New("testCache", 10*time.Minute, 1*time.Minute)
+var AppCache = New(10*time.Minute, 1*time.Minute)
 
 // AppCache init new cache
-var AppCacheGC = New("testGB", 10*time.Minute, 1*time.Second)
+var AppCacheGC = New(10*time.Minute, 1*time.Second)
 
 // TestSet set cache
 func TestSet(t *testing.T) {

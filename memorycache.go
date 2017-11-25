@@ -1,9 +1,8 @@
 package memorycache
 
-// TODO поиск по ключу и значению (регулярка), (второй парамерт countItem)
-// Сортировка и вывод множественных значений (второй парамерт countItem)
+// TODO поиск по ключу и значению (регулярка)
+// Сортировка и вывод множественных значений
 // Инкримент, дикримент
-// Rebase перенос из одной БД в другую
 // Экспорт & импорт в файл
 
 import (
@@ -17,16 +16,10 @@ import (
 
 // Cache struct cache
 type Cache struct {
-	db                DataBase
+	sync.RWMutex
+	items             map[string]Item
 	defaultExpiration time.Duration
-	mu                sync.RWMutex
-	availability      func(string, interface{})
 	cleanupInterval   time.Duration
-}
-
-// DataBase struct
-type DataBase struct {
-	items map[string]Item
 }
 
 // Item struct cache item
@@ -38,18 +31,13 @@ type Item struct {
 }
 
 // New initializing a new memory cache
-func New(database string, defaultExpiration, cleanupInterval time.Duration) *Cache {
+func New(defaultExpiration, cleanupInterval time.Duration) *Cache {
 
-	db := make(map[string]DataBase)
-
-	// database
-	db[database] = DataBase{
-		items: make(map[string]Item),
-	}
+	items := make(map[string]Item)
 
 	// cache item
 	cache := Cache{
-		db:                db[database],
+		items:             items,
 		defaultExpiration: defaultExpiration,
 		cleanupInterval:   cleanupInterval,
 	}
@@ -66,11 +54,11 @@ func (c *Cache) Set(key string, value interface{}, duration time.Duration) error
 		expiration = time.Now().Add(duration).UnixNano()
 	}
 
-	c.mu.Lock()
+	c.Lock()
 
-	defer c.mu.Unlock()
+	defer c.Unlock()
 
-	c.db.items[key] = Item{
+	c.items[key] = Item{
 		Value:      value,
 		Expiration: expiration,
 		Created:    time.Now(),
@@ -84,13 +72,13 @@ func (c *Cache) Set(key string, value interface{}, duration time.Duration) error
 // Get getting a cache by key
 func (c *Cache) Get(key string) (interface{}, bool) {
 
-	c.mu.RLock()
+	c.RLock()
 
-	item, found := c.db.items[key]
+	item, found := c.items[key]
 
 	// cache not found
 	if !found {
-		c.mu.RUnlock()
+		c.RUnlock()
 		return nil, false
 	}
 
@@ -98,13 +86,13 @@ func (c *Cache) Get(key string) (interface{}, bool) {
 
 		// cache expired
 		if time.Now().UnixNano() > item.Expiration {
-			c.mu.RUnlock()
+			c.RUnlock()
 			return nil, false
 		}
 
 	}
 
-	c.mu.RUnlock()
+	c.RUnlock()
 
 	return item.Value, true
 }
@@ -113,13 +101,13 @@ func (c *Cache) Get(key string) (interface{}, bool) {
 // Second parameter returns false if cache not found or expired
 func (c *Cache) GetItem(key string) (*Item, bool) {
 
-	c.mu.RLock()
+	c.RLock()
 
-	item, found := c.db.items[key]
+	item, found := c.items[key]
 
 	// cache not found
 	if !found {
-		c.mu.RUnlock()
+		c.RUnlock()
 		return nil, false
 	}
 
@@ -127,36 +115,36 @@ func (c *Cache) GetItem(key string) (*Item, bool) {
 
 		// cache expired
 		if time.Now().UnixNano() > item.Expiration {
-			c.mu.RUnlock()
+			c.RUnlock()
 			return nil, false
 		}
 
 	}
 
-	c.mu.RUnlock()
+	c.RUnlock()
 
 	return &item, true
 }
 
-// GetCount return count items in database
+// GetCount return count items
 func (c *Cache) GetCount() int {
 
-	return len(c.db.items)
+	return len(c.items)
 
 }
 
 // Delete cache by key
 func (c *Cache) Delete(key string) error {
 
-	c.mu.Lock()
+	c.Lock()
 
-	defer c.mu.Unlock()
+	defer c.Unlock()
 
-	if _, found := c.db.items[key]; !found {
+	if _, found := c.items[key]; !found {
 		return errors.New("Key not exist")
 	}
 
-	delete(c.db.items, key)
+	delete(c.items, key)
 
 	return nil
 }
@@ -164,11 +152,11 @@ func (c *Cache) Delete(key string) error {
 // Exists check cache exist
 func (c *Cache) Exists(key string) bool {
 
-	c.mu.RLock()
+	c.RLock()
 
-	defer c.mu.RUnlock()
+	defer c.RUnlock()
 
-	if value, found := c.db.items[key]; found {
+	if value, found := c.items[key]; found {
 		return !value.Expire()
 	}
 
@@ -189,14 +177,14 @@ func (i *Item) Expire() bool {
 // FlushAll delete all keys in database
 func (c *Cache) FlushAll() error {
 
-	c.mu.Lock()
+	c.Lock()
 
-	defer c.mu.Unlock()
+	defer c.Unlock()
 
-	// c.db.items = make(map[string]Item)
+	// c.items = make(map[string]Item)
 
-	for k := range c.db.items {
-		delete(c.db.items, k)
+	for k := range c.items {
+		delete(c.items, k)
 	}
 
 	return nil
@@ -212,25 +200,25 @@ func (c *Cache) Rename(key string, newKey string) error {
 		return errors.New("A key with this name already exists")
 	}
 
-	_, foundNewKey := c.db.items[newKey]
+	_, foundNewKey := c.items[newKey]
 
 	if foundNewKey {
 		return errors.New("Can not rename key")
 	}
 
-	c.mu.Lock()
+	c.Lock()
 
-	defer c.mu.Unlock()
+	defer c.Unlock()
 
-	value, found := c.db.items[key]
+	value, found := c.items[key]
 
 	if !found {
 		return errors.New("Can not rename key")
 	}
 
-	c.db.items[newKey] = value
+	c.items[newKey] = value
 
-	delete(c.db.items, key)
+	delete(c.items, key)
 
 	return nil
 }
@@ -245,23 +233,23 @@ func (c *Cache) Copy(key string, newKey string) error {
 		return errors.New("The name of the keys can not be the same")
 	}
 
-	_, foundNewKey := c.db.items[newKey]
+	_, foundNewKey := c.items[newKey]
 
 	if foundNewKey {
 		return errors.New("There is already a key with that name")
 	}
 
-	c.mu.Lock()
+	c.Lock()
 
-	defer c.mu.Unlock()
+	defer c.Unlock()
 
-	value, found := c.db.items[key]
+	value, found := c.items[key]
 
 	if !found {
 		return errors.New("Key not exist")
 	}
 
-	c.db.items[newKey] = value
+	c.items[newKey] = value
 
 	return nil
 }
@@ -275,7 +263,7 @@ func (c *Cache) GetLikeKey(search string) ([]interface{}, bool) {
 
 	var values []interface{}
 
-	if len(c.db.items) == 0 {
+	if len(c.items) == 0 {
 		return nil, false
 	}
 
@@ -298,9 +286,9 @@ func (c *Cache) GetLikeKey(search string) ([]interface{}, bool) {
 
 	}
 
-	c.mu.RLock()
+	c.RLock()
 
-	for k, i := range c.db.items {
+	for k, i := range c.items {
 
 		// search string in key name
 		index := strings.Index(k, search)
@@ -329,11 +317,11 @@ func (c *Cache) GetLikeKey(search string) ([]interface{}, bool) {
 	}
 
 	if len(values) == 0 {
-		c.mu.RUnlock()
+		c.RUnlock()
 		return nil, false
 	}
 
-	c.mu.RUnlock()
+	c.RUnlock()
 
 	return values, true
 
@@ -387,7 +375,7 @@ func (c *Cache) GC() {
 
 		<-time.After(c.cleanupInterval)
 
-		if c.db.items == nil {
+		if c.items == nil {
 			return
 		}
 
@@ -405,11 +393,11 @@ func (c *Cache) GC() {
 // expiredKeys returns key list which are expired.
 func (c *Cache) expiredKeys() (keys []string) {
 
-	c.mu.RLock()
+	c.RLock()
 
-	defer c.mu.RUnlock()
+	defer c.RUnlock()
 
-	for k, i := range c.db.items {
+	for k, i := range c.items {
 		if i.Expire() {
 			keys = append(keys, k)
 		}
@@ -421,29 +409,29 @@ func (c *Cache) expiredKeys() (keys []string) {
 // clearItems removes all the items which key in keys.
 func (c *Cache) clearItems(keys []string) {
 
-	c.mu.Lock()
+	c.Lock()
 
-	defer c.mu.Unlock()
+	defer c.Unlock()
 
 	for _, k := range keys {
-		delete(c.db.items, k)
+		delete(c.items, k)
 	}
 }
 
 // Get getting a cache by key without expire check
 func (c *Cache) getWithOutExpire(key string) (interface{}, bool) {
 
-	c.mu.RLock()
+	c.RLock()
 
-	item, found := c.db.items[key]
+	item, found := c.items[key]
 
 	// cache not found
 	if !found {
-		c.mu.RUnlock()
+		c.RUnlock()
 		return nil, false
 	}
 
-	c.mu.RUnlock()
+	c.RUnlock()
 
 	return item.Value, true
 }
