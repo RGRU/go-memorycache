@@ -1,6 +1,7 @@
-package memoryca
+package memorycache
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -16,7 +17,10 @@ const (
 )
 
 // AppCache init new cache
-var AppCache = New("testDB", 10*time.Minute, 1*time.Second)
+var AppCache = New("testCache", 10*time.Minute, 1*time.Minute)
+
+// AppCache init new cache
+var AppCacheGC = New("testGB", 10*time.Minute, 1*time.Second)
 
 // TestSet set cache
 func TestSet(t *testing.T) {
@@ -91,6 +95,8 @@ func TestGetCount(t *testing.T) {
 // TestGetEmpty get cache by key expired
 func TestGetExpired(t *testing.T) {
 
+	AppCache.FlushAll()
+
 	s := AppCache.Set(testKeyExpired, testValue, 1*time.Millisecond)
 
 	if s != nil {
@@ -110,6 +116,8 @@ func TestGetExpired(t *testing.T) {
 
 // TestDelete delete cache by key
 func TestDelete(t *testing.T) {
+
+	AppCache.FlushAll()
 
 	AppCache.Set(testKey, testValue, 1*time.Minute)
 
@@ -141,6 +149,8 @@ func TestDelete(t *testing.T) {
 // TestExists check exists cache
 func TestExists(t *testing.T) {
 
+	AppCache.FlushAll()
+
 	AppCache.Set(testKey, testValue, 1*time.Minute)
 
 	ok := AppCache.Exists(testKey)
@@ -160,6 +170,8 @@ func TestExists(t *testing.T) {
 
 // TestExpire check expire cache
 func TestExpire(t *testing.T) {
+
+	AppCache.FlushAll()
 
 	AppCache.Set(testKey, testValue, 2*time.Millisecond)
 
@@ -212,6 +224,8 @@ func TestFlushAll(t *testing.T) {
 // TestRename rename key to newkey
 func TestRename(t *testing.T) {
 
+	AppCache.FlushAll()
+
 	AppCache.Set(testKey, testValue, 5*time.Minute)
 
 	error := AppCache.Rename(testKey, testRenameKey)
@@ -256,6 +270,8 @@ func TestRename(t *testing.T) {
 // TestCopy copy value key to newkey
 func TestCopy(t *testing.T) {
 
+	AppCache.FlushAll()
+
 	AppCache.Set(testKey, testValue, 5*time.Minute)
 
 	error := AppCache.Copy(testKey, testCopyKey)
@@ -297,12 +313,42 @@ func TestCopy(t *testing.T) {
 
 }
 
+func TestGetLikeKey(t *testing.T) {
+
+	AppCache.FlushAll()
+
+	AppCache.Set("end:findkey", "value like one", 1*time.Second)
+	AppCache.Set("middle:findkey:middle", "value like two", 1*time.Second)
+	AppCache.Set("findkey:start", "value like three", 1*time.Second)
+	AppCache.Set("findkey:start:two", "value like three", 10*time.Second)
+	AppCache.Set("findkey:start:three", "value like three", 10*time.Second)
+	AppCache.Set("notfound", "value no like", 1*time.Second)
+
+	// sleep to make the cache expired
+	time.Sleep(2 * time.Second)
+
+	values, found := AppCache.GetLikeKey("findkey%")
+
+	if !found {
+		t.Error("Keys not found")
+	}
+
+	fmt.Println("values", len(values), values, found)
+
+	if len(values) != 2 {
+		t.Error("The count does not match the expectation")
+	}
+
+}
+
 func TestStartGC(t *testing.T) {
 
-	AppCache.Set(testKey, testValue, 1*time.Second)
+	AppCacheGC.FlushAll()
+
+	AppCacheGC.Set(testKey, testValue, 1*time.Second)
 
 	// get cahce before run GC
-	value, found := AppCache.getWithOutExpire(testKey)
+	value, found := AppCacheGC.getWithOutExpire(testKey)
 
 	if value != testValue {
 		t.Error("Error: ", "The received value: do not correspond to the expectation:", value, testValue)
@@ -313,13 +359,13 @@ func TestStartGC(t *testing.T) {
 	}
 
 	// start garbage collector
-	AppCache.StartGC()
+	AppCacheGC.StartGC()
 
 	// sleep to make the cache expired
 	time.Sleep(3 * time.Second)
 
 	// get cahce after run GC
-	value, found = AppCache.getWithOutExpire(testKey)
+	value, found = AppCacheGC.getWithOutExpire(testKey)
 
 	if found {
 		t.Error("Error: ", "Cache Expired and must be empty", value)
@@ -327,16 +373,23 @@ func TestStartGC(t *testing.T) {
 
 }
 
-// // BenchmarkSet benchmark Set
-// func BenchmarkSet(b *testing.B) {
-//
-// 	AppCache.benchmarkSet(b)
-//
-// }
-//
-// // BenchmarkGet benchmark Get
-// func BenchmarkGet(b *testing.B) {
-//
-// 	AppCache.benchmarkGet(b)
-//
-// }
+// BenchmarkSet benchmark Set
+func BenchmarkSet(b *testing.B) {
+
+	AppCache.benchmarkSet(b)
+
+}
+
+// BenchmarkGet benchmark Get
+func BenchmarkGet(b *testing.B) {
+
+	AppCache.benchmarkGet(b)
+
+}
+
+// BenchmarkGet benchmark GetLikeKey
+func BenchmarkGetLikeKey(b *testing.B) {
+
+	AppCache.benchmarkGetLikeKey(b)
+
+}

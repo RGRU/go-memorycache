@@ -1,10 +1,10 @@
-# Go-memoryca [![Build Status](https://travis-ci.org/RGRU/go-memoryca.svg?branch=master)](https://travis-ci.org/RGRU/go-memoryca)
+# Go-memorycache [![Build Status](https://travis-ci.org/RGRU/go-memorycache.svg?branch=master)](https://travis-ci.org/RGRU/go-memorycache)
 Manager memory key:value store/cache in Golang
 
 
 ## How to install?
 
-	go get github.com/RGRU/go-memoryca
+	go get github.com/RGRU/go-memorycache
 
 
 ## How to use it?
@@ -12,12 +12,12 @@ Manager memory key:value store/cache in Golang
 First you must import it
 
 	import (
-		memoryca "github.com/RGRU/go-memoryca"
+		memorycache "github.com/RGRU/go-memorycache"
 	)
 
 Init a new Cache
 
-	cache := memoryca.New("testDB", 10*time.Minute, 10*time.Minute)
+	cache := memorycache.New("testDB", 10*time.Minute, 10*time.Minute)
 
 
 Use it like this:

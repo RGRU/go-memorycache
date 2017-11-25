@@ -1,15 +1,16 @@
-package memoryca
+package memorycache
 
 // TODO поиск по ключу и значению (регулярка), (второй парамерт countItem)
 // Сортировка и вывод множественных значений (второй парамерт countItem)
 // Инкримент, дикримент
 // Rebase перенос из одной БД в другую
-// Кол-во элементов в DB GetCount
-// Невозможность регистрации с двумя одинаковыми БД
+// Экспорт & импорт в файл
 
 import (
 	"errors"
+	"strings"
 	"sync"
+	"testing"
 
 	"time"
 )
@@ -265,6 +266,106 @@ func (c *Cache) Copy(key string, newKey string) error {
 	return nil
 }
 
+// GetLikeKey list of keys by mask
+// findString% - start of string
+// %findString - end of string
+// %findString% - any occurrence of a string
+// findString - full occurrence of a string
+func (c *Cache) GetLikeKey(search string) ([]interface{}, bool) {
+
+	var values []interface{}
+
+	if len(c.db.items) == 0 {
+		return nil, false
+	}
+
+	search, like := parseLikeString(search)
+
+	ls := len(search)
+
+	// full
+	if like == 3 {
+
+		item, found := c.Get(search)
+
+		if !found {
+			return nil, false
+		}
+
+		values = append(values, item)
+
+		return values, true
+
+	}
+
+	c.mu.RLock()
+
+	for k, i := range c.db.items {
+
+		// search string in key name
+		index := strings.Index(k, search)
+
+		if index > -1 {
+
+			// if cache no expired
+			if !i.Expire() {
+
+				switch {
+				case like == 0 && index == 0: // start
+					values = append(values, i.Value)
+					break
+				case like == 1 && index == len(k)-ls: // end
+					values = append(values, i.Value)
+					break
+				case like == 2: // middle
+					values = append(values, i.Value)
+					break
+				}
+
+			}
+
+		}
+
+	}
+
+	if len(values) == 0 {
+		c.mu.RUnlock()
+		return nil, false
+	}
+
+	c.mu.RUnlock()
+
+	return values, true
+
+}
+
+// parseLikeString parse string param like
+// return required string, 0: start | 1: middle | 2: end | 3: full
+func parseLikeString(s string) (string, int) {
+
+	count := strings.Count(s, "%")
+
+	// required string
+	search := strings.Replace(s, "%", "", 2)
+
+	switch count {
+	case 0: // full
+		return search, 3
+	case 2: // middle
+		return search, 1
+	}
+
+	i := strings.Index(s, "%")
+
+	if i == 0 { // end
+		return search, 2
+	}
+
+	// start
+	return search, 0
+
+}
+
 // StartGC start Garbage Collection
 func (c *Cache) StartGC() error {
 
@@ -308,9 +409,9 @@ func (c *Cache) expiredKeys() (keys []string) {
 
 	defer c.mu.RUnlock()
 
-	for key, i := range c.db.items {
+	for k, i := range c.db.items {
 		if i.Expire() {
-			keys = append(keys, key)
+			keys = append(keys, k)
 		}
 	}
 
@@ -324,8 +425,8 @@ func (c *Cache) clearItems(keys []string) {
 
 	defer c.mu.Unlock()
 
-	for _, key := range keys {
-		delete(c.db.items, key)
+	for _, k := range keys {
+		delete(c.db.items, k)
 	}
 }
 
@@ -347,24 +448,35 @@ func (c *Cache) getWithOutExpire(key string) (interface{}, bool) {
 	return item.Value, true
 }
 
-// // benchmarkGet benchmark set cahce
-// func (c *Cache) benchmarkSet(b *testing.B) {
-//
-// 	for n := 0; n < b.N; n++ {
-//
-// 		c.Set("testKey:"+string(b.N), "testValue"+string(b.N), 1*time.Minute)
-//
-// 	}
-//
-// }
-//
-// // benchmarkGet benchmark get cahce
-// func (c *Cache) benchmarkGet(b *testing.B) {
-//
-// 	for n := 0; n < b.N; n++ {
-//
-// 		c.Get("testKey:" + string(b.N))
-//
-// 	}
-//
-// }
+// benchmarkGet benchmark set cahce
+func (c *Cache) benchmarkSet(b *testing.B) {
+
+	for n := 0; n < b.N; n++ {
+
+		c.Set("testKey:"+string(b.N), "testValue"+string(b.N), 1*time.Minute)
+
+	}
+
+}
+
+// benchmarkGet benchmark get cahce
+func (c *Cache) benchmarkGet(b *testing.B) {
+
+	for n := 0; n < b.N; n++ {
+
+		c.Get("testKey:" + string(b.N))
+
+	}
+
+}
+
+// benchmarkGet benchmark get like key
+func (c *Cache) benchmarkGetLikeKey(b *testing.B) {
+
+	for n := 0; n < b.N; n++ {
+
+		c.GetLikeKey("testKey%")
+
+	}
+
+}
