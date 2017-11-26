@@ -19,7 +19,7 @@ First you must import it
 
 Init a new Cache
 
-	cache := memorycache.New("testDB", 10*time.Minute, 10*time.Minute)
+	cache := memorycache.New("testDB", 5 * time.Minute, 10 * time.Minute)
 
 
 Use it like this:
