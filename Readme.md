@@ -1,3 +1,5 @@
+Language: English | [Русский](https://github.com/RGRU/go-memorycache/blob/master/ReadmeRU.md)
+
 # Go-memorycache [![Build Status](https://travis-ci.org/RGRU/go-memorycache.svg?branch=master)](https://travis-ci.org/RGRU/go-memorycache)
 Manager memory key:value store/cache in Golang
 

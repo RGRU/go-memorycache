@@ -3,6 +3,7 @@ package memorycache
 // TODO поиск по ключу и значению (регулярка)
 // Сортировка и вывод множественных значений
 // Инкримент, дикримент
+// Конкатенация строк
 // Экспорт & импорт в файл
 
 import (
@@ -30,7 +31,7 @@ type Item struct {
 	Duration   time.Duration
 }
 
-// New initializing a new memory cache
+// New. Initializing a new memory cache
 func New(defaultExpiration, cleanupInterval time.Duration) *Cache {
 
 	items := make(map[string]Item)
@@ -40,6 +41,10 @@ func New(defaultExpiration, cleanupInterval time.Duration) *Cache {
 		items:             items,
 		defaultExpiration: defaultExpiration,
 		cleanupInterval:   cleanupInterval,
+	}
+
+	if cleanupInterval > 0 {
+		cache.StartGC()
 	}
 
 	return &cache
@@ -126,14 +131,28 @@ func (c *Cache) GetItem(key string) (*Item, bool) {
 	return &item, true
 }
 
-// GetCount return count items
+// GetCount return count items, without expired
 func (c *Cache) GetCount() int {
 
-	return len(c.items)
+	var count int
+
+	for _, i := range c.items {
+
+		// if cache no expired
+		if !i.Expire() {
+
+			count++
+
+		}
+
+	}
+
+	return count
 
 }
 
 // Delete cache by key
+// Return false if key not found
 func (c *Cache) Delete(key string) error {
 
 	c.Lock()
@@ -141,7 +160,7 @@ func (c *Cache) Delete(key string) error {
 	defer c.Unlock()
 
 	if _, found := c.items[key]; !found {
-		return errors.New("Key not exist")
+		return errors.New("Key not found")
 	}
 
 	delete(c.items, key)
@@ -181,8 +200,6 @@ func (c *Cache) FlushAll() error {
 
 	defer c.Unlock()
 
-	// c.items = make(map[string]Item)
-
 	for k := range c.items {
 		delete(c.items, k)
 	}
@@ -197,26 +214,26 @@ func (c *Cache) FlushAll() error {
 func (c *Cache) Rename(key string, newKey string) error {
 
 	if key == newKey {
-		return errors.New("A key with this name already exists")
+		return errors.New("The new name can not be the same with the old one")
 	}
 
 	_, foundNewKey := c.items[newKey]
 
 	if foundNewKey {
-		return errors.New("Can not rename key")
+		return errors.New("A key with a new name already exists")
+	}
+
+	item, found := c.items[key]
+
+	if !found {
+		return errors.New("Key not found")
 	}
 
 	c.Lock()
 
 	defer c.Unlock()
 
-	value, found := c.items[key]
-
-	if !found {
-		return errors.New("Can not rename key")
-	}
-
-	c.items[newKey] = value
+	c.items[newKey] = item
 
 	delete(c.items, key)
 
@@ -230,26 +247,26 @@ func (c *Cache) Rename(key string, newKey string) error {
 func (c *Cache) Copy(key string, newKey string) error {
 
 	if key == newKey {
-		return errors.New("The name of the keys can not be the same")
+		return errors.New("The new name can not be the same with the old one")
 	}
 
 	_, foundNewKey := c.items[newKey]
 
 	if foundNewKey {
-		return errors.New("There is already a key with that name")
+		return errors.New("A key with a new name already exists")
 	}
 
 	c.Lock()
 
 	defer c.Unlock()
 
-	value, found := c.items[key]
+	item, found := c.items[key]
 
 	if !found {
-		return errors.New("Key not exist")
+		return errors.New("Key not found")
 	}
 
-	c.items[newKey] = value
+	c.items[newKey] = item
 
 	return nil
 }
@@ -366,10 +383,10 @@ func (c *Cache) StartGC() error {
 // GC Garbage Collection
 func (c *Cache) GC() {
 
-	if c.cleanupInterval < 1 {
-
-		return
-	}
+	// if c.cleanupInterval < 1 {
+	//
+	// 	return
+	// }
 
 	for {
 
