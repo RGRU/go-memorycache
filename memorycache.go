@@ -383,11 +383,6 @@ func (c *Cache) StartGC() error {
 // GC Garbage Collection
 func (c *Cache) GC() {
 
-	// if c.cleanupInterval < 1 {
-	//
-	// 	return
-	// }
-
 	for {
 
 		<-time.After(c.cleanupInterval)
